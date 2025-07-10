@@ -346,6 +346,85 @@ Tempo + OpenTelemetry: Distributed tracing (needs SDK integration)
 
 Please head to the RAEDME file inside the `04_observability` folder for a more in depth insights about the tools and the over all architecture.
 
+## 🛡️ Layer 4: Resilience
+
+Provides automated backup and disaster recovery capabilities for the entire Kubernetes platform using Velero. I will enclose all config and resource creation for this layer here, because backup is a complete product, and in the future we can decide moving to a different technology (Longhorn, Kasten...etc), so we would have the entire solution in one place.
+
+### Components
+
+- **Velero Server** - Orchestrates backup and restore operations
+- **S3 Backup Storage** - Encrypted storage with lifecycle policies for cost optimization
+- **EBS Snapshots** - Point-in-time copies of persistent volumes
+- **Node Agents** - File-level backup capabilities on worker nodes
+- **IAM Roles** - Secure access via IRSA for backup operations
+
+### Backup Strategy
+
+| Schedule | Frequency | Retention | Type |
+|----------|-----------|-----------|------|
+| Daily | 2 AM | 30 days | EBS snapshots + configs |
+| Weekly | Sunday 3 AM | 90 days | Full backup with file-level |
+| Monthly | 1st at 4 AM | 365 days | Complete disaster recovery |
+
+### What Gets Protected
+
+**Application Data:**
+- Database volumes (PostgreSQL, MySQL)
+- User uploads and file storage
+- Monitoring data (Prometheus, Grafana)
+
+**Cluster Configuration:**
+- Deployments, Services, ConfigMaps
+- Secrets (encrypted)
+- RBAC policies and permissions
+- Custom resources (ArgoCD apps, certificates)
+
+### Disaster Recovery Scenarios
+
+- **Volume corruption** → Restore from EBS snapshots (5-10 min)
+- **Accidental deletion** → Selective namespace restore (2-5 min)
+- **Cluster failure** → Full cluster rebuild and restore (15-30 min)
+- **Region outage** → Cross-region recovery (30-60 min)
+
+### Deployment
+
+```bash
+cd resilience/
+terraform init
+terraform apply
+```
+
+### Usage Examples
+
+```bash
+# List available backups
+velero backup get
+
+# Restore specific namespace
+velero restore create --from-backup daily-backup-20250110 \
+  --include-namespaces ecommerce-app
+
+# Manual backup before major changes
+velero backup create pre-deployment-backup \
+  --include-namespaces production
+```
+
+### Production Readiness
+
+**Current Features:**
+- Automated scheduled backups with appropriate retention
+- Encrypted storage with lifecycle management
+- Cross-service backup coordination
+- Monitoring integration ready
+
+**Still Needed for Production:**
+- Cross-region backup replication
+- Automated backup validation testing
+- Comprehensive alerting rules
+- Disaster recovery runbooks
+
+For detailed configuration and advanced features, see the [Resilience Layer README](resilience/README.md).
+
 ## Application Deployment
 
 In the `100_app` directory we have `main.tf` file which is responsible for deploying Google's Microservices Demo App.
